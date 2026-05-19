@@ -1,6 +1,7 @@
 // garden.js — question garden where members add and pick questions
 
 import { supabase, dbQuery, SUPABASE_URL, SUPABASE_KEY } from './supabase.js'
+import { renderAnswers } from './answers.js'
 
 let currentAccessToken = null
 
@@ -25,6 +26,7 @@ export async function renderGarden(groupId, accessToken) {
       </div>
 
       <div class="garden-footer">
+        <button id="answers-btn">Write Answers</button>
         <button id="signout-btn">Sign out</button>
       </div>
     </div>
@@ -64,6 +66,10 @@ export async function renderGarden(groupId, accessToken) {
       input.value = ''
       await loadQuestions(groupId)
     }
+  })
+
+  document.querySelector('#answers-btn').addEventListener('click', () => {
+    renderAnswers(groupId, accessToken)
   })
 
   document.querySelector('#signout-btn').addEventListener('click', () => {
