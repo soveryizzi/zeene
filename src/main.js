@@ -1,4 +1,4 @@
-// Zeene — main entry point
+// main.js — entry point
 
 import './style.css'
 
