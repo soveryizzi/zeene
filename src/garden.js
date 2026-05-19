@@ -9,11 +9,27 @@ let currentAccessToken = null
 export async function renderGarden(groupId, accessToken) {
   currentAccessToken = accessToken
 
+  // Fetch group info first
+  const groups = await dbQuery(
+    'groups',
+    `id=eq.${groupId}&select=name,invite_code`,
+    accessToken
+  )
+  const group = groups[0] || { name: 'Your group', invite_code: '?' }
+
   document.querySelector('#app').innerHTML = `
     <div class="garden-container">
-      <h1>Zeene 🌿</h1>
-      <h2>Question Garden</h2>
-      <p>Add questions for this month's issue</p>
+      <div class="garden-header">
+        <h1>Zeene 🌿</h1>
+        <div class="group-info">
+          <span class="group-name">${group.name}</span>
+          <span class="invite-code" title="Share this code with friends">
+            Invite: <strong>${group.invite_code}</strong>
+          </span>
+        </div>
+      </div>
+
+      <p class="section-label">Question garden</p>
 
       <div class="add-question">
         <input type="text" id="question-input" placeholder="Type a question..." />
@@ -27,8 +43,8 @@ export async function renderGarden(groupId, accessToken) {
       </div>
 
       <div class="garden-footer">
-        <button id="answers-btn">Write Answers</button>
-        <button id="zine-btn">Read Zine</button>
+        <button id="answers-btn">Write answers</button>
+        <button id="zine-btn">Read zine</button>
         <button id="signout-btn">Sign out</button>
       </div>
     </div>
