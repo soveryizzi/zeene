@@ -2,6 +2,7 @@
 
 import { supabase, dbQuery, SUPABASE_URL, SUPABASE_KEY } from './supabase.js'
 import { renderAnswers } from './answers.js'
+import { renderZine } from './zine.js'
 
 let currentAccessToken = null
 
@@ -27,6 +28,7 @@ export async function renderGarden(groupId, accessToken) {
 
       <div class="garden-footer">
         <button id="answers-btn">Write Answers</button>
+        <button id="zine-btn">Read Zine</button>
         <button id="signout-btn">Sign out</button>
       </div>
     </div>
@@ -70,6 +72,10 @@ export async function renderGarden(groupId, accessToken) {
 
   document.querySelector('#answers-btn').addEventListener('click', () => {
     renderAnswers(groupId, accessToken)
+  })
+
+  document.querySelector('#zine-btn').addEventListener('click', () => {
+    renderZine(groupId, accessToken)
   })
 
   document.querySelector('#signout-btn').addEventListener('click', () => {
