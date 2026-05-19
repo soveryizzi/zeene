@@ -1,7 +1,7 @@
 // zine.js — read everyone's answers as a zine
 
 import { supabase, dbQuery } from './supabase.js'
-import { renderGarden } from './garden.js'
+import { renderNav } from './nav.js'
 
 let currentAccessToken = null
 
@@ -10,35 +10,22 @@ export async function renderZine(groupId, accessToken) {
 
   document.querySelector('#app').innerHTML = `
     <div class="zine-container">
-      <h1>Zeene 🌿</h1>
-      <h2>This Month's Zine</h2>
+      <h1>This Month's Zine</h1>
+      <p class="page-sub">May 2026</p>
 
       <div id="zine-content">
         <p>Loading...</p>
       </div>
-
-      <div class="zine-footer">
-        <button id="back-btn">Back to Garden</button>
-        <button id="signout-btn">Sign out</button>
-      </div>
     </div>
   `
 
+  renderNav(groupId, accessToken, 'zine')
   await loadZine(groupId)
-
-  document.querySelector('#back-btn').addEventListener('click', () => {
-    renderGarden(groupId, accessToken)
-  })
-
-  document.querySelector('#signout-btn').addEventListener('click', () => {
-    supabase.auth.signOut()
-  })
 }
 
 async function loadZine(groupId) {
   const content = document.querySelector('#zine-content')
 
-  // Get all questions for this group
   const questions = await dbQuery(
     'questions',
     `group_id=eq.${groupId}&order=created_at.asc`,
@@ -50,7 +37,6 @@ async function loadZine(groupId) {
     return
   }
 
-  // Get all answers for these questions
   const questionIds = questions.map(q => q.id).join(',')
   const answers = await dbQuery(
     'answers',
@@ -58,14 +44,12 @@ async function loadZine(groupId) {
     currentAccessToken
   )
 
-  // Get all members of this group
   const members = await dbQuery(
     'group_members',
     `group_id=eq.${groupId}&select=user_id`,
     currentAccessToken
   )
 
-  // Get profiles for all members
   const userIds = members.map(m => m.user_id).join(',')
   const profiles = await dbQuery(
     'profiles',
@@ -73,46 +57,67 @@ async function loadZine(groupId) {
     currentAccessToken
   )
 
-  // Build a map of user_id -> display name
+  // Assign a color to each user
+  const CARD_COLORS = [
+    { bg: '#C8DFB8', border: '#A8C4A0', author: '#2E5C2A' },
+    { bg: '#D8CCE8', border: '#C9B2D6', author: '#8C6B9E' },
+    { bg: '#EEC8D4', border: '#EAB8CC', author: '#D4789A' },
+  ]
+
   const profileMap = {}
-  profiles.forEach(p => {
+  const colorMap = {}
+  profiles.forEach((p, i) => {
     profileMap[p.id] = p.display_name || 'Anonymous'
+    colorMap[p.id] = CARD_COLORS[i % CARD_COLORS.length]
   })
 
-  // Build a map of question_id -> array of answers
   const answerMap = {}
-  questions.forEach(q => {
-    answerMap[q.id] = []
-  })
+  questions.forEach(q => { answerMap[q.id] = [] })
   answers.forEach(a => {
-    if (answerMap[a.question_id]) {
-      answerMap[a.question_id].push(a)
-    }
+    if (answerMap[a.question_id]) answerMap[a.question_id].push(a)
   })
 
-  // Render the zine
   content.innerHTML = questions.map(q => {
     const qAnswers = answerMap[q.id]
 
     if (qAnswers.length === 0) {
       return `
-        <div class="zine-question">
-          <h3>${q.text}</h3>
-          <p class="no-answers">No answers yet.</p>
+        <div class="paper-sheet">
+          <div class="paper-bg"></div>
+          <div class="holes">
+            <div class="hole"></div>
+            <div class="hole"></div>
+            <div class="hole"></div>
+          </div>
+          <div class="paper-content">
+            <p class="paper-question">${q.text}</p>
+            <p class="no-answers">No answers yet.</p>
+          </div>
         </div>
       `
     }
 
     return `
-      <div class="zine-question">
-        <h3>${q.text}</h3>
-        <div class="zine-answers">
-          ${qAnswers.map(a => `
-            <div class="zine-answer">
-              <p class="answer-author">${profileMap[a.user_id]}</p>
-              <p class="answer-content">${a.content}</p>
-            </div>
-          `).join('')}
+      <div class="paper-sheet">
+        <div class="paper-bg"></div>
+        <div class="holes">
+          <div class="hole"></div>
+          <div class="hole"></div>
+          <div class="hole"></div>
+        </div>
+        <div class="paper-content">
+          <p class="paper-question">${q.text}</p>
+          <div class="stickies">
+            ${qAnswers.map(a => {
+              const color = colorMap[a.user_id] || CARD_COLORS[0]
+              return `
+                <div class="sticky" style="background:${color.bg}; border: 0.5px solid ${color.border};">
+                  <p class="sticky-text">${a.content}</p>
+                  <p class="sticky-author" style="color:${color.author}">${profileMap[a.user_id] || 'Anonymous'}</p>
+                </div>
+              `
+            }).join('')}
+          </div>
         </div>
       </div>
     `

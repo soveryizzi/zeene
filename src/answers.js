@@ -1,6 +1,7 @@
 // answers.js — write your answers to this month's questions
 
 import { supabase, dbQuery, SUPABASE_URL, SUPABASE_KEY } from './supabase.js'
+import { renderNav } from './nav.js'
 
 let currentAccessToken = null
 
@@ -9,39 +10,24 @@ export async function renderAnswers(groupId, accessToken) {
 
   document.querySelector('#app').innerHTML = `
     <div class="answers-container">
-      <h1>Zeene 🌿</h1>
-      <h2>Your Answers</h2>
-      <p>Answer this month's questions</p>
+      <h1>Your Answers</h1>
+      <p class="page-sub">Answer this month's questions</p>
 
       <div id="answers-list">
         <p>Loading questions...</p>
       </div>
-
-      <div class="answers-footer">
-        <button id="back-btn">Back to Garden</button>
-        <button id="signout-btn">Sign out</button>
-      </div>
     </div>
   `
 
+  renderNav(groupId, accessToken, 'answers')
   await loadQuestionsWithAnswers(groupId)
-
-  document.querySelector('#back-btn').addEventListener('click', () => {
-    import('./garden.js').then(m => m.renderGarden(groupId, accessToken))
-  })
-
-  document.querySelector('#signout-btn').addEventListener('click', () => {
-    supabase.auth.signOut()
-  })
 }
 
 async function loadQuestionsWithAnswers(groupId) {
   const list = document.querySelector('#answers-list')
 
-  // Get current user
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Get questions for this group
   const questions = await dbQuery(
     'questions',
     `group_id=eq.${groupId}&order=created_at.asc`,
@@ -53,14 +39,12 @@ async function loadQuestionsWithAnswers(groupId) {
     return
   }
 
-  // Get existing answers for this user
   const answers = await dbQuery(
     'answers',
     `user_id=eq.${user.id}&select=*`,
     currentAccessToken
   )
 
-  // Build a map of question_id -> answer
   const answerMap = {}
   if (answers) {
     answers.forEach(a => {
@@ -68,7 +52,6 @@ async function loadQuestionsWithAnswers(groupId) {
     })
   }
 
-  // Render each question with a text area
   list.innerHTML = questions.map(q => `
     <div class="answer-item" data-question-id="${q.id}">
       <p class="question-text">${q.text}</p>
@@ -77,12 +60,13 @@ async function loadQuestionsWithAnswers(groupId) {
         data-question-id="${q.id}"
         placeholder="Write your answer..."
       >${answerMap[q.id]?.content || ''}</textarea>
-      <button class="save-answer-btn" data-question-id="${q.id}">Save</button>
-      <span class="save-status" data-question-id="${q.id}"></span>
+      <div class="answer-actions">
+        <button class="save-answer-btn" data-question-id="${q.id}">Save</button>
+        <span class="save-status" data-question-id="${q.id}"></span>
+      </div>
     </div>
   `).join('')
 
-  // Add save listeners to each button
   document.querySelectorAll('.save-answer-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const questionId = btn.dataset.questionId
@@ -100,7 +84,6 @@ async function loadQuestionsWithAnswers(groupId) {
       const existing = answerMap[questionId]
 
       if (existing) {
-        // Update existing answer
         const response = await fetch(`${SUPABASE_URL}/rest/v1/answers?id=eq.${existing.id}`, {
           method: 'PATCH',
           headers: {
@@ -119,7 +102,6 @@ async function loadQuestionsWithAnswers(groupId) {
           status.textContent = 'Error saving.'
         }
       } else {
-        // Insert new answer
         const response = await fetch(`${SUPABASE_URL}/rest/v1/answers`, {
           method: 'POST',
           headers: {

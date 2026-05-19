@@ -3,13 +3,14 @@
 import { supabase, dbQuery, SUPABASE_URL, SUPABASE_KEY } from './supabase.js'
 import { renderAnswers } from './answers.js'
 import { renderZine } from './zine.js'
+import { openProfilePanel } from './profilePanel.js'
+import { renderNav } from './nav.js'
 
 let currentAccessToken = null
 
 export async function renderGarden(groupId, accessToken) {
   currentAccessToken = accessToken
 
-  // Fetch group info first
   const groups = await dbQuery(
     'groups',
     `id=eq.${groupId}&select=name,invite_code`,
@@ -17,22 +18,29 @@ export async function renderGarden(groupId, accessToken) {
   )
   const group = groups[0] || { name: 'Your group', invite_code: '?' }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const profiles = await dbQuery(
+    'profiles',
+    `id=eq.${user.id}&select=display_name`,
+    accessToken
+  )
+  const displayName = profiles[0]?.display_name || '?'
+  const initial = displayName[0].toUpperCase()
+
   document.querySelector('#app').innerHTML = `
     <div class="garden-container">
       <div class="garden-header">
-        <h1>Zeene 🌿</h1>
+        <h1>Question Garden</h1>
         <div class="group-info">
           <span class="group-name">${group.name}</span>
-          <span class="invite-code" title="Share this code with friends">
-            Invite: <strong>${group.invite_code}</strong>
-          </span>
+          <span class="invite-code">Invite: <strong>${group.invite_code}</strong></span>
         </div>
       </div>
 
-      <p class="section-label">Question garden</p>
+      <p class="section-label">Add a question</p>
 
       <div class="add-question">
-        <input type="text" id="question-input" placeholder="Type a question..." />
+        <input type="text" id="question-input" placeholder="Write your own question..." />
         <button id="add-question-btn">Add</button>
       </div>
 
@@ -41,15 +49,10 @@ export async function renderGarden(groupId, accessToken) {
       <div id="question-list">
         <p>Loading questions...</p>
       </div>
-
-      <div class="garden-footer">
-        <button id="answers-btn">Write answers</button>
-        <button id="zine-btn">Read zine</button>
-        <button id="signout-btn">Sign out</button>
-      </div>
     </div>
   `
 
+  renderNav(groupId, accessToken, 'garden')
   await loadQuestions(groupId)
 
   document.querySelector('#add-question-btn').addEventListener('click', async () => {
@@ -84,18 +87,6 @@ export async function renderGarden(groupId, accessToken) {
       input.value = ''
       await loadQuestions(groupId)
     }
-  })
-
-  document.querySelector('#answers-btn').addEventListener('click', () => {
-    renderAnswers(groupId, accessToken)
-  })
-
-  document.querySelector('#zine-btn').addEventListener('click', () => {
-    renderZine(groupId, accessToken)
-  })
-
-  document.querySelector('#signout-btn').addEventListener('click', () => {
-    supabase.auth.signOut()
   })
 }
 
