@@ -2,16 +2,37 @@
 
 import { supabase, dbQuery, SUPABASE_URL, SUPABASE_KEY } from './supabase.js'
 import { renderNav } from './nav.js'
+import { renderGarden } from './garden.js'
+import { renderZine } from './zine.js'
 
 let currentAccessToken = null
+let currentGroupId = null
+let currentUserId = null
+let debounceTimers = {}
+
+const CARD_COLORS = [
+  '#EEC8D4', '#D8CCE8', '#C8DFB8', '#F0D8C0', '#EEE8B8'
+]
 
 export async function renderAnswers(groupId, accessToken) {
   currentAccessToken = accessToken
+  currentGroupId = groupId
+
+  const { data: { user } } = await supabase.auth.getUser()
+  currentUserId = user.id
 
   document.querySelector('#app').innerHTML = `
-    <div class="answers-container">
-      <h1>Your Answers</h1>
-      <p class="page-sub">Answer this month's questions</p>
+    <div class="answers-page">
+      <div class="answers-header">
+        <div>
+          <h1>your answers</h1>
+          <p class="answers-subtitle">write something for each question this month</p>
+        </div>
+        <div class="answers-nav-buttons">
+          <button class="nav-ghost-btn" id="add-more-btn">+ add more questions</button>
+          <button class="nav-ghost-btn" id="preview-btn">preview in issue</button>
+        </div>
+      </div>
 
       <div id="answers-list">
         <p>Loading questions...</p>
@@ -21,12 +42,18 @@ export async function renderAnswers(groupId, accessToken) {
 
   renderNav(groupId, accessToken, 'answers')
   await loadQuestionsWithAnswers(groupId)
+
+  document.querySelector('#add-more-btn').addEventListener('click', () => {
+    renderGarden(groupId, accessToken)
+  })
+
+  document.querySelector('#preview-btn').addEventListener('click', () => {
+    renderZine(groupId, accessToken)
+  })
 }
 
 async function loadQuestionsWithAnswers(groupId) {
   const list = document.querySelector('#answers-list')
-
-  const { data: { user } } = await supabase.auth.getUser()
 
   const questions = await dbQuery(
     'questions',
@@ -41,7 +68,7 @@ async function loadQuestionsWithAnswers(groupId) {
 
   const answers = await dbQuery(
     'answers',
-    `user_id=eq.${user.id}&select=*`,
+    `user_id=eq.${currentUserId}&select=*`,
     currentAccessToken
   )
 
@@ -52,80 +79,95 @@ async function loadQuestionsWithAnswers(groupId) {
     })
   }
 
-  list.innerHTML = questions.map(q => `
-    <div class="answer-item" data-question-id="${q.id}">
-      <p class="question-text">${q.text}</p>
-      <textarea
-        class="answer-input"
-        data-question-id="${q.id}"
-        placeholder="Write your answer..."
-      >${answerMap[q.id]?.content || ''}</textarea>
-      <div class="answer-actions">
-        <button class="save-answer-btn" data-question-id="${q.id}">Save</button>
-        <span class="save-status" data-question-id="${q.id}"></span>
+  list.innerHTML = questions.map((q, i) => {
+    const color = CARD_COLORS[i % CARD_COLORS.length]
+    const existingAnswer = answerMap[q.id]
+    return `
+      <div class="answer-card" style="background:${color}">
+        <div class="answer-header">
+          <div class="answer-number">${i + 1}. ${q.text}</div>
+          <span class="answer-saved-indicator" data-question-id="${q.id}"></span>
+        </div>
+        <textarea
+          class="answer-textarea"
+          data-question-id="${q.id}"
+          placeholder="write something here..."
+        >${existingAnswer?.content || ''}</textarea>
       </div>
-    </div>
-  `).join('')
+    `
+  }).join('')
 
-  document.querySelectorAll('.save-answer-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const questionId = btn.dataset.questionId
-      const textarea = document.querySelector(`textarea[data-question-id="${questionId}"]`)
-      const status = document.querySelector(`.save-status[data-question-id="${questionId}"]`)
-      const content = textarea.value.trim()
+  document.querySelectorAll('.answer-textarea').forEach(textarea => {
+    textarea.addEventListener('input', () => {
+      const questionId = textarea.dataset.questionId
 
-      if (!content) {
-        status.textContent = 'Please write something first.'
-        return
+      // Clear existing timer
+      if (debounceTimers[questionId]) {
+        clearTimeout(debounceTimers[questionId])
       }
 
-      status.textContent = 'Saving...'
-
-      const existing = answerMap[questionId]
-
-      if (existing) {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/answers?id=eq.${existing.id}`, {
-          method: 'PATCH',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${currentAccessToken}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify({ content })
-        })
-
-        if (response.ok) {
-          status.textContent = 'Saved!'
-          answerMap[questionId].content = content
-        } else {
-          status.textContent = 'Error saving.'
-        }
-      } else {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/answers`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${currentAccessToken}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify({
-            question_id: questionId,
-            user_id: user.id,
-            content
-          })
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          status.textContent = 'Saved!'
-          answerMap[questionId] = data[0]
-        } else {
-          const err = await response.json()
-          status.textContent = err.message || 'Error saving.'
-        }
-      }
+      // Set new timer
+      debounceTimers[questionId] = setTimeout(() => {
+        saveAnswer(questionId, textarea.value.trim(), answerMap)
+      }, 800)
     })
   })
+}
+
+async function saveAnswer(questionId, content, answerMap) {
+  const indicator = document.querySelector(`.answer-saved-indicator[data-question-id="${questionId}"]`)
+
+  if (!content) {
+    return
+  }
+
+  const existing = answerMap[questionId]
+
+  try {
+    if (existing) {
+      await fetch(`${SUPABASE_URL}/rest/v1/answers?id=eq.${existing.id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${currentAccessToken}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({ content })
+      })
+
+      answerMap[questionId].content = content
+    } else {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/answers`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${currentAccessToken}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          question_id: questionId,
+          user_id: currentUserId,
+          content
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        answerMap[questionId] = data[0]
+      }
+    }
+
+    // Show saved indicator
+    indicator.textContent = 'saved ✓'
+    indicator.style.opacity = '1'
+
+    // Fade out after 2 seconds
+    setTimeout(() => {
+      indicator.style.opacity = '0'
+    }, 2000)
+  } catch (err) {
+    console.error('Error saving answer:', err)
+  }
 }
