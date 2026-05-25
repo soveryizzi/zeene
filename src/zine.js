@@ -214,16 +214,7 @@ function renderCoverPage(el) {
         ${memberAvatars}
       </div>
 
-      <svg class="cover-flower" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="60" cy="60" rx="16" ry="28" fill="#D4789A" opacity="0.6" transform="rotate(0 60 60)"/>
-        <ellipse cx="60" cy="60" rx="16" ry="28" fill="#D4789A" opacity="0.6" transform="rotate(60 60 60)"/>
-        <ellipse cx="60" cy="60" rx="16" ry="28" fill="#D4789A" opacity="0.6" transform="rotate(120 60 60)"/>
-        <ellipse cx="63" cy="63" rx="16" ry="28" fill="#8C6B9E" opacity="0.5" transform="rotate(0 63 63)"/>
-        <ellipse cx="63" cy="63" rx="16" ry="28" fill="#8C6B9E" opacity="0.5" transform="rotate(60 63 63)"/>
-        <ellipse cx="63" cy="63" rx="16" ry="28" fill="#8C6B9E" opacity="0.5" transform="rotate(120 63 63)"/>
-        <circle cx="60" cy="60" r="10" fill="#D4789A" opacity="0.7"/>
-        <circle cx="63" cy="63" r="10" fill="#8C6B9E" opacity="0.5"/>
-      </svg>
+      
 
     </div>
   `
